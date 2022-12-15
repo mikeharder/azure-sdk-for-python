@@ -4,6 +4,7 @@
 # --------------------------------------------------------------------------------------------
 
 import os
+import traceback
 
 _DEFAULT_LENGTH = 1024 * 1024
 _BYTE_BUFFER = [_DEFAULT_LENGTH, os.urandom(_DEFAULT_LENGTH)]
@@ -16,33 +17,46 @@ def get_random_bytes(buffer_length):
     return _BYTE_BUFFER[1][:buffer_length]
 
 
+_RANDOM_BYTES = os.urandom(1024 * 1024)
+
 class RandomStream:
-    def __init__(self, length, initial_buffer_length=_DEFAULT_LENGTH):
-        self._base_data = get_random_bytes(initial_buffer_length)
-        self._data_length = length
-        self._base_buffer_length = initial_buffer_length
+    def __init__(self, length):
+        self._length = length
         self._position = 0
-        self._remaining = length
+        self._buffer = _RANDOM_BYTES
+        self._buffer_length = len(self._buffer)
+        self._buffer_position = 0
 
     def reset(self):
         self._position = 0
-        self._remaining = self._data_length
+        self._buffer_position = 0
 
     def read(self, size=None):
-        if self._remaining == 0:
-            return b""
+        traceback.print_stack()
+
+        print("size: " + str(size))
+
+        bytes_available = self._length - self._position
+        buffer_bytes_available = self._buffer_length - self._buffer_position
 
         if size is None:
-            e = self._base_buffer_length
-        else:
-            e = size
-        e = min(e, self._remaining)
-        if e > self._base_buffer_length:
-            self._base_data = get_random_bytes(e)
-            self._base_buffer_length = e
-        self._remaining = self._remaining - e
-        self._position += e
-        return self._base_data[:e]
+            size = bytes_available
+
+        bytes_to_read = min(size, bytes_available, buffer_bytes_available)
+        print("bytes_to_read: " + str(bytes_to_read))
+
+        data = self._buffer[self._buffer_position:self._buffer_position + bytes_to_read]
+        print("len(data): " + str(len(data)))
+
+        self._buffer_position = self._buffer_position + bytes_to_read
+        if self._buffer_position == self._buffer_length:
+            self._buffer_position = 0
+        print("self._buffer_position: " + str(self._buffer_position))
+
+        self._position = self._position + bytes_to_read
+        print("self._position: " + str(self._position))
+
+        return data
 
     def tell(self):
         return self._position
@@ -53,10 +67,10 @@ class RandomStream:
         elif whence == 1:
             self._position = self._position + index
         elif whence == 2:
-            self._position = self._data_length - 1 + index
+            self._position = self._length - 1 + index
 
     def remaining(self):
-        return self._remaining
+        return self._length - self._position
 
 
 class WriteStream:
